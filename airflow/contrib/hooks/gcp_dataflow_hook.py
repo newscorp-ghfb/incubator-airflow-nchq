@@ -102,17 +102,6 @@ class _Dataflow(LoggingMixin):
             stderr=subprocess.PIPE,
             close_fds=True)
 
-    def _line(self, fd):
-        if fd == self._proc.stderr.fileno():
-            lines = self._proc.stderr.readlines()
-            for line in lines:
-              self.log.warning(line[:-1])
-            line = lines[-1][:-1]
-            return line
-        if fd == self._proc.stdout.fileno():
-            line = self._proc.stdout.readline()
-            return line
-
     @staticmethod
     def _extract_job(line):
         if line is not None:
@@ -122,13 +111,27 @@ class _Dataflow(LoggingMixin):
     def wait_for_done(self):
         reads = [self._proc.stderr.fileno(), self._proc.stdout.fileno()]
         self.log.info("Start waiting for DataFlow process to complete.")
-        while self._proc.poll() is None:
-            ret = select.select(reads, [], [], 5)
+        while True:
+            ret = select.select(reads, [], [], 1.0)
+            read_data = False
             if ret is not None:
                 for fd in ret[0]:
-                    line = self._line(fd)
-                    self.log.debug(line[:-1])
-            else:
+                    if fd == self._proc.stderr.fileno():
+                        lines = self._proc.stderr.readlines()
+                        for line in lines:
+                            read_data = True
+                            self.log.warning(line[:-1])
+                    elif fd == self._proc.stdout.fileno():
+                        lines = self._proc.stdout.readlines()
+                        for line in lines:
+                            read_data = True
+                            self.log.debug(line[:-1])
+                    else:
+                        raise Exception("unknown fd")
+            # Wait until we've consumed all output before exiting
+            if not read_data:
+                if self._proc.poll() is not None:
+                    break
                 self.log.info("Waiting for DataFlow process to complete.")
         if self._proc.returncode is not 0:
             raise Exception("DataFlow failed with return code {}".format(
