@@ -14,7 +14,11 @@
 #
 
 import unittest
+from mock import call
+from mock import MagicMock
+
 from airflow.contrib.hooks.gcp_dataflow_hook import DataFlowHook
+from airflow.contrib.hooks.gcp_dataflow_hook import _Dataflow
 
 try:
     from unittest import mock
@@ -54,3 +58,27 @@ class DataFlowHookTest(unittest.TestCase):
             dataflow=PY_FILE, py_options=PY_OPTIONS)
         internal_dataflow_mock.assert_called_once_with(
             TASK_ID, OPTIONS, PY_FILE, mock.ANY, ['python'] + PY_OPTIONS)
+
+
+class DataFlowExecutionTest(unittest.TestCase):
+
+    @mock.patch('airflow.contrib.hooks.gcp_dataflow_hook._Dataflow.log')
+    def test_command_logging_stdout(self, mock_logging):
+        mock_logging.debug = MagicMock()
+        mock_logging.info = MagicMock()
+        mock_logging.warning = MagicMock()
+        dataflow = _Dataflow(['bash', '-c', 'echo -e "hello\nstdout"'])
+        mock_logging.info.assert_called_with('Running command: %s', 'bash -c echo -e "hello\nstdout"')
+        dataflow.wait_for_done()
+        mock_logging.debug.assert_has_calls([call('hello'), call('stdout')])
+
+
+    @mock.patch('airflow.contrib.hooks.gcp_dataflow_hook._Dataflow.log')
+    def test_command_logging_stderr(self, mock_logging):
+        mock_logging.debug = MagicMock()
+        mock_logging.info = MagicMock()
+        mock_logging.warning = MagicMock()
+        dataflow = _Dataflow(['bash', '-c', 'echo -e "hello\nstderr" 1>&2'])
+        mock_logging.info.assert_called_with('Running command: %s', 'bash -c echo -e "hello\nstderr" 1>&2')
+        dataflow.wait_for_done()
+        mock_logging.warning.assert_has_calls([call('hello'), call('stderr')])
