@@ -139,7 +139,6 @@ class DataFlowHookTest(unittest.TestCase):
         self.assertListEqual(sorted(mock_dataflow.call_args[0][0]),
                              sorted(EXPECTED_CMD))
 
-
     @mock.patch('airflow.contrib.hooks.gcp_dataflow_hook._Dataflow.log')
     @mock.patch('subprocess.Popen')
     @mock.patch('select.select')
@@ -163,6 +162,30 @@ class DataFlowHookTest(unittest.TestCase):
       mock_logging.info.assert_called_with('Running command: %s', 'test cmd')
       self.assertRaises(Exception, dataflow.wait_for_done)
       mock_logging.warning.assert_has_calls([call('test'), call('error')])
+
+
+class DataFlowExecutionTest(unittest.TestCase):
+
+    @mock.patch('airflow.contrib.hooks.gcp_dataflow_hook._Dataflow.log')
+    def test_command_logging_stdout(self, mock_logging):
+        mock_logging.debug = MagicMock()
+        mock_logging.info = MagicMock()
+        mock_logging.warning = MagicMock()
+        dataflow = _Dataflow(['bash', '-c', 'echo -e "hello\nstdout"'])
+        mock_logging.info.assert_called_with('Running command: %s', 'bash -c echo -e "hello\nstdout"')
+        dataflow.wait_for_done()
+        mock_logging.debug.assert_has_calls([call('hello'), call('stdout')])
+
+
+    @mock.patch('airflow.contrib.hooks.gcp_dataflow_hook._Dataflow.log')
+    def test_command_logging_stderr(self, mock_logging):
+        mock_logging.debug = MagicMock()
+        mock_logging.info = MagicMock()
+        mock_logging.warning = MagicMock()
+        dataflow = _Dataflow(['bash', '-c', 'echo -e "hello\nstderr" 1>&2'])
+        mock_logging.info.assert_called_with('Running command: %s', 'bash -c echo -e "hello\nstderr" 1>&2')
+        dataflow.wait_for_done()
+        mock_logging.warning.assert_has_calls([call('hello'), call('stderr')])
 
 
 class DataFlowTemplateHookTest(unittest.TestCase):
