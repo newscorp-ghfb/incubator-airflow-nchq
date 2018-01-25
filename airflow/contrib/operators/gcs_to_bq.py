@@ -42,6 +42,9 @@ class GoogleCloudStorageToBigQueryOperator(BaseOperator):
         https://cloud.google.com/bigquery/docs/reference/v2/jobs#configuration.load
         Should not be set when source_format is 'DATASTORE_BACKUP'.
     :type schema_fields: list
+    :param schema_bucket: If set, the schema will be searched in this bucket.
+        Otherwise the schema is assume to live in the bucket `bucket`
+    :type schema_bucket string
     :param schema_object: If set, a GCS object path pointing to a .json file that
         contains the schema for the table.
     :param schema_object: string
@@ -110,7 +113,7 @@ class GoogleCloudStorageToBigQueryOperator(BaseOperator):
         dataset.table$partition.
     :type time_partitioning: dict
     """
-    template_fields = ('bucket', 'source_objects',
+    template_fields = ('bucket', 'source_objects', 'schema_bucket',
                        'schema_object', 'destination_project_dataset_table')
     template_ext = ('.sql',)
     ui_color = '#f0eee4'
@@ -121,6 +124,7 @@ class GoogleCloudStorageToBigQueryOperator(BaseOperator):
                  source_objects,
                  destination_project_dataset_table,
                  schema_fields=None,
+                 schema_bucket=None,
                  schema_object=None,
                  source_format='CSV',
                  compression='NONE',
@@ -142,12 +146,12 @@ class GoogleCloudStorageToBigQueryOperator(BaseOperator):
                  external_table=False,
                  time_partitioning={},
                  *args, **kwargs):
-
         super(GoogleCloudStorageToBigQueryOperator, self).__init__(*args, **kwargs)
 
         # GCS config
         self.bucket = bucket
         self.source_objects = source_objects
+        self.schema_bucket = schema_bucket or bucket
         self.schema_object = schema_object
 
         # BQ config
@@ -185,7 +189,7 @@ class GoogleCloudStorageToBigQueryOperator(BaseOperator):
                 google_cloud_storage_conn_id=self.google_cloud_storage_conn_id,
                 delegate_to=self.delegate_to)
             schema_fields = json.loads(gcs_hook.download(
-                self.bucket,
+                self.schema_bucket,
                 self.schema_object).decode("utf-8"))
         else:
             schema_fields = self.schema_fields
