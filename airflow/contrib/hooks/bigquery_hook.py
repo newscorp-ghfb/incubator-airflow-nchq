@@ -34,6 +34,11 @@ from airflow.contrib.hooks.gcp_api_base_hook import GoogleCloudBaseHook
 from airflow.hooks.dbapi_hook import DbApiHook
 from airflow.utils.log.logging_mixin import LoggingMixin
 
+# REQUIRED FOR GBQ ISSUE WORKAROUND
+# https://github.com/pydata/pandas-gbq/issues/114
+import numpy as np
+from pandas import DataFrame
+from pandas.compat import lzip
 
 class BigQueryHook(GoogleCloudBaseHook, DbApiHook, LoggingMixin):
     """
@@ -72,6 +77,24 @@ class BigQueryHook(GoogleCloudBaseHook, DbApiHook, LoggingMixin):
         """
         raise NotImplementedError()
 
+    @staticmethod
+    def parse_one_column_df(schema, rows):
+        dtype_map = {'FLOAT': np.dtype(float),
+                     'TIMESTAMP': 'M8[ns]'}
+
+        fields = schema['fields']
+        col_types = [field['type'] for field in fields]
+        col_names = [str(field['name']) for field in fields]
+        col_dtypes = [
+            dtype_map.get(field['type'].upper(), object)
+            for field in fields
+        ]
+        page_array = np.zeros((len(rows),), dtype=lzip(col_names, col_dtypes))
+        for row_num, field_value in enumerate(rows):
+            page_array[row_num][0] = field_value
+
+        return DataFrame(page_array, columns=col_names)
+
     def get_pandas_df(self, bql, parameters=None, dialect='legacy'):
         """
         Returns a Pandas DataFrame for the results produced by a BigQuery
@@ -96,7 +119,11 @@ class BigQueryHook(GoogleCloudBaseHook, DbApiHook, LoggingMixin):
 
         while len(pages) > 0:
             page = pages.pop()
-            dataframe_list.append(gbq_parse_data(schema, page))
+            try:
+                dataframe_list.append(gbq_parse_data(schema, page))
+            except TypeError as error:
+                # Workaround issue 
+                dataframe_list.append(self.parse_one_column_df(schema, page))
 
         if len(dataframe_list) > 0:
             return concat(dataframe_list, ignore_index=True)
