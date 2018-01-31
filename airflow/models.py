@@ -797,7 +797,12 @@ class TaskInstance(Base, LoggingMixin):
     def __init__(self, task, execution_date, state=None):
         self.dag_id = task.dag_id
         self.task_id = task.task_id
-        self.execution_date = execution_date
+        #self.execution_date = execution_date
+        # make sure we have a localized execution_date stored in UTC
+        if execution_date:
+            self.execution_date = timezone.convert_to_utc(execution_date)
+        else:
+            self.execution_date = None
         self.task = task
         self.queue = task.queue
         self.pool = task.pool
