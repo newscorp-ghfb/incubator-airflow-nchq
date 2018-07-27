@@ -50,8 +50,8 @@ class TriggerDagRunOperator(BaseOperator):
     :param execution_date: Execution date for the dag
     :type execution_date: datetime.datetime
     """
-    template_fields = tuple()
-    template_ext = tuple()
+    template_fields = ('exec_date_template',)
+    template_ext = ()
     ui_color = '#ffefeb'
 
     @apply_defaults
@@ -60,21 +60,28 @@ class TriggerDagRunOperator(BaseOperator):
             trigger_dag_id,
             python_callable=None,
             execution_date=None,
+            exec_date_template=None,
             *args, **kwargs):
         super(TriggerDagRunOperator, self).__init__(*args, **kwargs)
         self.python_callable = python_callable
         self.trigger_dag_id = trigger_dag_id
         self.execution_date = execution_date
+        self.exec_date_template = exec_date_template
 
     def execute(self, context):
         dro = DagRunOrder(run_id='trig__' + timezone.utcnow().isoformat())
+
+        execution_date = self.execution_date
+        if self.exec_date_template:
+            execution_date = timezone.parse(self.exec_date_template)
+
         if self.python_callable is not None:
             dro = self.python_callable(context, dro)
         if dro:
             trigger_dag(dag_id=self.trigger_dag_id,
                         run_id=dro.run_id,
                         conf=json.dumps(dro.payload),
-                        execution_date=self.execution_date,
+                        execution_date=execution_date,
                         replace_microseconds=False)
         else:
             self.log.info("Criteria not met, moving on")
