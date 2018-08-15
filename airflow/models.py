@@ -1806,7 +1806,7 @@ class TaskInstance(Base, LoggingMixin):
             "Host: {self.hostname}<br>"
             "Log file: {self.log_filepath}<br>"
             "Mark success: <a href='{self.mark_success_url}'>Link</a><br>"
-        ).format(try_number=self.try_number, max_tries=self.max_tries + 1, **locals())
+        ).format(try_number=self._try_number, max_tries=self.max_tries + 1, **locals())
         send_email(task.email, title, body)
 
     def set_duration(self):
