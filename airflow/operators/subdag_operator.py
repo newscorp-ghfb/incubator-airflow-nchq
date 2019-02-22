@@ -22,6 +22,7 @@ from airflow.executors.sequential_executor import SequentialExecutor
 from airflow.models import BaseOperator, Pool
 from airflow.utils.decorators import apply_defaults
 from airflow.utils.db import provide_session
+from airflow.utils.state import State
 
 
 class SubDagOperator(BaseOperator):
@@ -98,6 +99,13 @@ class SubDagOperator(BaseOperator):
 
     def execute(self, context):
         ed = context['execution_date']
-        self.subdag.run(
-            start_date=ed, end_date=ed, donot_pickle=True,
-            executor=self.executor)
+        try:
+            self.subdag.run(
+                start_date=ed, end_date=ed, donot_pickle=True,
+                executor=self.executor)
+        except AirflowException as e:
+            subdagrun_state = self.subdag.get_dagrun(ed).get_state()
+            self.log.info('SUBDAG STATE: %s', subdagrun_state)
+            self.log.info('BACKFILL JOB EXCEPTION: %s', e.msg)
+            if subdagrun_state != State.SUCCESS:
+                raise e
