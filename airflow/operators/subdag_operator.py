@@ -106,6 +106,6 @@ class SubDagOperator(BaseOperator):
         except AirflowException as e:
             subdagrun_state = self.subdag.get_dagrun(ed).get_state()
             self.log.info('SUBDAG STATE: %s', subdagrun_state)
-            self.log.info('BACKFILL JOB EXCEPTION: %s', e.msg)
+            self.log.info('BACKFILL JOB EXCEPTION: %s', e.message)
             if subdagrun_state != State.SUCCESS:
                 raise e
